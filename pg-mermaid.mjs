@@ -1,40 +1,8 @@
 #!/usr/bin/env zx
 
+const { prompt } = require("enquirer");
+
 $.verbose = false;
-
-if (
-  argv.help ||
-  argv.h ||
-  (!argv.username && !argv.U) ||
-  (!argv.dbname && !argv.d) ||
-  (!argv.schema && !argv.s)
-) {
-  echo("Usage:");
-  echo(
-    "  ./pg-mermaid.mjs --host=HOSTNAME --port=PORT --username=USERNAME --dbname=DBNAME --schema=SCHEMA [--output-path=OUTPUT_PATH]"
-  );
-  echo("");
-  echo(
-    "  -h, --host=HOSTNAME      postgres database server host (default: localhost)"
-  );
-  echo(
-    '  -p, --port=PORT          postgres database server port (default: "5432")'
-  );
-  echo("  -U, --username=USERNAME  postgres database user name");
-  echo("  -d, --dbname=DBNAME      postgres database name to connect to");
-  echo("  -s, --schema=SCHEMA");
-  echo("  --output-path=OUTPUT_PATH");
-  process.exit(1);
-}
-
-const hostname = argv.host ?? "localhost";
-const port = argv.port ?? "5432";
-const username = argv.username ?? argv.U;
-const databaseName = argv.dbname ?? argv.d;
-const schema = argv.schema ?? argv.s;
-
-const password =
-  process.env.PGPASSWORD ?? (await question(`Password for ${username}: `));
 
 const runSql = async (command) =>
   await $`
@@ -60,6 +28,93 @@ const formatContraintType = (constraintType) => {
       return undefined;
   }
 };
+
+if (argv.help) {
+  echo("Usage:");
+  echo(
+    "  ./pg-mermaid.mjs [--host=HOSTNAME --port=PORT --username=USERNAME --dbname=DBNAME] [--schema=SCHEMA] [--output-path=OUTPUT_PATH]"
+  );
+  echo("");
+  echo("Options:");
+  echo(
+    "  -h, --host=HOSTNAME      postgres database server host (default: localhost)"
+  );
+  echo(
+    '  -p, --port=PORT          postgres database server port (default: "5432")'
+  );
+  echo("  -U, --username=USERNAME  postgres database user name");
+  echo("  -d, --dbname=DBNAME      postgres database name to connect to");
+  echo("  --schema=SCHEMA");
+  echo("  --output-path=OUTPUT_PATH");
+  process.exit(0);
+}
+
+let hostname;
+let port;
+let username;
+let databaseName;
+if ((argv.username || argv.U) && (argv.dbname || argv.d)) {
+  hostname = argv.host ?? argv.h ?? "localhost";
+  port = argv.port ?? argv.p ?? 5432;
+  username = argv.username ?? argv.U;
+  databaseName = argv.dbname ?? argv.d;
+} else {
+  ({ hostname, port, username, databaseName } = await prompt([
+    {
+      type: "input",
+      name: "hostname",
+      message: "Hostname?",
+      initial: argv.host ?? argv.h ?? "localhost",
+    },
+    {
+      type: "input",
+      name: "port",
+      message: "Port?",
+      initial: argv.port ?? argv.p ?? 5432,
+    },
+    {
+      type: "input",
+      name: "username",
+      message: "Username?",
+    },
+    {
+      type: "input",
+      name: "databaseName",
+      message: "Database name?",
+    },
+  ]));
+}
+
+let password;
+if (process.env.PGPASSWORD) {
+  password = process.env.PGPASSWORD;
+} else {
+  ({ password } = await prompt({
+    type: "password",
+    name: "password",
+    message: `Password?`,
+  }));
+}
+
+let schema;
+if (argv.schema) {
+  ({ schema } = argv);
+} else {
+  const schemasInCsvFormat = await runSql(`
+  select
+    schema_name
+  from
+    information_schema.schemata;
+`);
+  const schemas = schemasInCsvFormat.stdout.split("\n").filter(Boolean);
+
+  ({ schema } = await prompt({
+    type: "autocomplete",
+    name: "schema",
+    message: "Schema?",
+    choices: schemas,
+  }));
+}
 
 const erDiagram = ["erDiagram"];
 
@@ -168,15 +223,43 @@ for (const foreignKey of foreignKeys) {
 if (argv["output-path"]) {
   const markdown = "```mermaid\n" + erDiagram.join("\n") + "\n```";
   await $`echo ${markdown} > ${argv["output-path"]}`;
+  echo(`Done! (see '${argv["output-path"]}')`);
   process.exit();
 }
 
-echo("Preview diagram in Mermaid live editor:");
-echo(
-  `https://mermaid.live/edit#base64:${btoa(
-    JSON.stringify({
-      code: erDiagram.join("\n"),
-      mermaid: {},
-    })
-  )}`
-);
+const { choice } = await prompt({
+  type: "select",
+  name: "choice",
+  message: " ",
+  choices: [
+    "Preview diagram in Mermaid live editor",
+    "Generate diagram in markdown format",
+  ],
+});
+
+switch (choice) {
+  case "Preview diagram in Mermaid live editor":
+    echo(
+      `https://mermaid.live/edit#base64:${btoa(
+        JSON.stringify({
+          code: erDiagram.join("\n"),
+          mermaid: {},
+        })
+      )}`
+    );
+    break;
+  case "Generate diagram in markdown format":
+    const { outputPath } = await prompt({
+      type: "input",
+      name: "outputPath",
+      message: "Path?",
+      initial: "./entity-relationship-diagram.md",
+    });
+    const markdown = "```mermaid\n" + erDiagram.join("\n") + "\n```";
+    await $`echo ${markdown} > ${outputPath}`;
+    echo("Tips! Next time, you can directly run:");
+    echo(
+      `  ./pg-mermaid.mjs --host=${hostname} --port=${port} --username=${username} --dbname=${databaseName} --schema=${schema} --output-path=${outputPath}`
+    );
+    break;
+}
