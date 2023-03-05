@@ -45,6 +45,7 @@ if (argv.help) {
   echo("  -U, --username=USERNAME  postgres database user name");
   echo("  -d, --dbname=DBNAME      postgres database name to connect to");
   echo("  --schema=SCHEMA");
+  echo("  --exclude-tables=TABLE1,TABLE2");
   echo("  --output-path=OUTPUT_PATH");
   process.exit(0);
 }
@@ -105,7 +106,7 @@ if (argv.schema) {
     schema_name
   from
     information_schema.schemata;
-`);
+  `);
   const schemas = schemasInCsvFormat.stdout.split("\n").filter(Boolean);
 
   ({ schema } = await prompt({
@@ -130,7 +131,24 @@ const tablesInCsvFormat = await runSql(`
 
 const tables = tablesInCsvFormat.stdout.split("\n").filter(Boolean);
 
-for (const table of tables) {
+let selectedTables;
+if (argv["output-path"]) {
+  selectedTables = argv["exclude-tables"]
+    ? tables.filter((table) => !argv["exclude-tables"].includes(table))
+    : tables;
+} else {
+  ({ selectedTables } = await prompt({
+    type: "multiselect",
+    name: "selectedTables",
+    message: "Tables?",
+    choices: [...tables].sort(),
+    initial: argv["exclude-tables"]
+      ? tables.filter((table) => !argv["exclude-tables"].includes(table))
+      : tables,
+  }));
+}
+
+for (const table of selectedTables) {
   erDiagram.push(`${table} {`);
 
   const columnsInCsvFormat = await runSql(`
@@ -190,9 +208,15 @@ const foreignKeysInCsvFormat = await runSql(`
     join information_schema.key_column_usage as key_column_usage_1
       on key_column_usage_1.constraint_schema = referential_constraints.constraint_schema
       and key_column_usage_1.constraint_name = referential_constraints.constraint_name
+      and key_column_usage_1.table_name in (${selectedTables
+        .map((table) => `'${table}'`)
+        .join(", ")})
     join information_schema.key_column_usage as key_column_usage_2
       on key_column_usage_2.constraint_schema = referential_constraints.unique_constraint_schema
       and key_column_usage_2.constraint_name = referential_constraints.unique_constraint_name
+      and key_column_usage_2.table_name in (${selectedTables
+        .map((table) => `'${table}'`)
+        .join(", ")})
   where 
     referential_constraints.constraint_schema = '${schema}';
 `);
@@ -259,7 +283,13 @@ switch (choice) {
     await $`echo ${markdown} > ${outputPath}`;
     echo("Tips! Next time, you can directly run:");
     echo(
-      `  ./pg-mermaid.mjs --host=${hostname} --port=${port} --username=${username} --dbname=${databaseName} --schema=${schema} --output-path=${outputPath}`
+      `  ./pg-mermaid.mjs --host=${hostname} --port=${port} --username=${username} --dbname=${databaseName} --schema=${schema} ${
+        selectedTables.length === tables.length
+          ? ""
+          : `--exclude-tables=${tables
+              .filter((table) => !selectedTables.includes(table))
+              .join(",")} `
+      }--output-path=${outputPath}`
     );
     break;
 }
