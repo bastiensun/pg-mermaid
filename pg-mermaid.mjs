@@ -4,6 +4,30 @@ const { prompt } = require("enquirer");
 
 $.verbose = false;
 
+const showHelp = () => {
+  echo("Usage:");
+  echo(
+    "  ./pg-mermaid.mjs [--username=USERNAME --dbname=DBNAME --schema=SCHEMA [OPTION]...]"
+  );
+  echo("");
+  echo("Options:");
+  echo(
+    "  -h, --host=HOSTNAME             postgres database server host (default: localhost)"
+  );
+  echo(
+    '  -p, --port=PORT                 postgres database server port (default: "5432")'
+  );
+  echo("  -U, --username=USERNAME         postgres database user name");
+  echo(
+    "  -d, --dbname=DBNAME             postgres database name to connect to"
+  );
+  echo("  --schema=SCHEMA");
+  echo("  --exclude-tables=TABLE1,TABLE2");
+  echo(
+    "  --output-path=OUTPUT_PATH       (default: ./entity-relationship-diagram.md)"
+  );
+};
+
 const runSql = async (command) =>
   await $`
   PGPASSWORD=${password} \
@@ -18,49 +42,56 @@ const runSql = async (command) =>
     --command=${command}
 `;
 
-const formatContraintType = (constraintType) => {
-  switch (constraintType) {
-    case "PRIMARY KEY":
-      return "PK";
-    case "FOREIGN KEY":
-      return "FK";
-    default:
-      return undefined;
-  }
-};
-
 if (argv.help) {
-  echo("Usage:");
-  echo(
-    "  ./pg-mermaid.mjs [--host=HOSTNAME --port=PORT --username=USERNAME --dbname=DBNAME] [--schema=SCHEMA] [--output-path=OUTPUT_PATH]"
-  );
-  echo("");
-  echo("Options:");
-  echo(
-    "  -h, --host=HOSTNAME      postgres database server host (default: localhost)"
-  );
-  echo(
-    '  -p, --port=PORT          postgres database server port (default: "5432")'
-  );
-  echo("  -U, --username=USERNAME  postgres database user name");
-  echo("  -d, --dbname=DBNAME      postgres database name to connect to");
-  echo("  --schema=SCHEMA");
-  echo("  --exclude-tables=TABLE1,TABLE2");
-  echo("  --output-path=OUTPUT_PATH");
-  process.exit(0);
+  showHelp();
+  process.exit();
 }
+
+let isInteractive;
 
 let hostname;
 let port;
 let username;
 let databaseName;
-if ((argv.username || argv.U) && (argv.dbname || argv.d)) {
+let password;
+let schema;
+let outputPath;
+let selectedTables;
+if (
+  (argv.username || argv.U) &&
+  (argv.dbname || argv.d) &&
+  argv.schema &&
+  process.env.PGPASSWORD
+) {
+  isInteractive = false;
+
   hostname = argv.host ?? argv.h ?? "localhost";
   port = argv.port ?? argv.p ?? 5432;
   username = argv.username ?? argv.U;
   databaseName = argv.dbname ?? argv.d;
-} else {
-  ({ hostname, port, username, databaseName } = await prompt([
+  password = process.env.PGPASSWORD;
+  schema = argv.schema;
+  outputPath = argv["output-path"] ?? "./entity-relationship-diagram.md";
+
+  const excludeTables = argv["exclude-tables"]?.split(",") ?? [];
+  const selectedTablesInCsvFormat = await runSql(`
+    select 
+      table_name 
+    from 
+      information_schema.tables
+    where 
+      table_schema = '${schema}'
+      and table_name not in (${
+        excludeTables.length === 0
+          ? "''"
+          : excludeTables.map((table) => `'${table}'`).join(",")
+      });
+  `);
+  selectedTables = selectedTablesInCsvFormat.stdout.split("\n").filter(Boolean);
+} else if (Object.keys(argv).length === 1 && argv._.length === 0) {
+  isInteractive = true;
+
+  ({ hostname, port, username, databaseName, password } = await prompt([
     {
       type: "input",
       name: "hostname",
@@ -83,29 +114,18 @@ if ((argv.username || argv.U) && (argv.dbname || argv.d)) {
       name: "databaseName",
       message: "Database name?",
     },
+    {
+      type: "password",
+      name: "password",
+      message: `Password?`,
+    },
   ]));
-}
 
-let password;
-if (process.env.PGPASSWORD) {
-  password = process.env.PGPASSWORD;
-} else {
-  ({ password } = await prompt({
-    type: "password",
-    name: "password",
-    message: `Password?`,
-  }));
-}
-
-let schema;
-if (argv.schema) {
-  ({ schema } = argv);
-} else {
   const schemasInCsvFormat = await runSql(`
-  select
-    schema_name
-  from
-    information_schema.schemata;
+    select
+      schema_name
+    from
+      information_schema.schemata;
   `);
   const schemas = schemasInCsvFormat.stdout.split("\n").filter(Boolean);
 
@@ -115,12 +135,8 @@ if (argv.schema) {
     message: "Schema?",
     choices: schemas,
   }));
-}
 
-const erDiagram = ["erDiagram"];
-
-// Entity
-const tablesInCsvFormat = await runSql(`
+  const tablesInCsvFormat = await runSql(`
   select 
     table_name 
   from 
@@ -128,15 +144,8 @@ const tablesInCsvFormat = await runSql(`
   where 
     table_schema = '${schema}';
 `);
+  const tables = tablesInCsvFormat.stdout.split("\n").filter(Boolean);
 
-const tables = tablesInCsvFormat.stdout.split("\n").filter(Boolean);
-
-let selectedTables;
-if (argv["output-path"]) {
-  selectedTables = argv["exclude-tables"]
-    ? tables.filter((table) => !argv["exclude-tables"].includes(table))
-    : tables;
-} else {
   ({ selectedTables } = await prompt({
     type: "multiselect",
     name: "selectedTables",
@@ -146,7 +155,18 @@ if (argv["output-path"]) {
       ? tables.filter((table) => !argv["exclude-tables"].includes(table))
       : tables,
   }));
+} else {
+  showHelp();
+  process.exit(1);
 }
+
+const erDiagram = ["erDiagram"];
+
+// Entity
+const formattedContraintType = new Map([
+  ["PRIMARY KEY", "PK"],
+  ["FOREIGN KEY", "FK"],
+]);
 
 for (const table of selectedTables) {
   erDiagram.push(`${table} {`);
@@ -180,7 +200,7 @@ for (const table of selectedTables) {
       return {
         name,
         dataType: dataType.replaceAll("_", ""),
-        contraintType: formatContraintType(constraintType),
+        contraintType: formattedContraintType.get(constraintType),
         isNullable: isNullable === "YES",
       };
     });
@@ -244,10 +264,10 @@ for (const foreignKey of foreignKeys) {
 }
 
 // Output
-if (argv["output-path"]) {
+if (!isInteractive) {
   const markdown = "```mermaid\n" + erDiagram.join("\n") + "\n```";
-  await $`echo ${markdown} > ${argv["output-path"]}`;
-  echo(`Done! (see '${argv["output-path"]}')`);
+  await $`echo ${markdown} > ${outputPath}`;
+  echo(`Entity relationship diagram generated at '${outputPath}'.`);
   process.exit();
 }
 
@@ -282,14 +302,24 @@ switch (choice) {
     const markdown = "```mermaid\n" + erDiagram.join("\n") + "\n```";
     await $`echo ${markdown} > ${outputPath}`;
     echo("Tips! Next time, you can directly run:");
+
+    const tablesInCsvFormat = await runSql(`
+      select 
+        table_name
+      from 
+        information_schema.tables
+      where 
+        table_schema = '${schema}';
+    `);
+    const tables = tablesInCsvFormat.stdout.split("\n").filter(Boolean);
     echo(
-      `  ./pg-mermaid.mjs --host=${hostname} --port=${port} --username=${username} --dbname=${databaseName} --schema=${schema} ${
+      `  ./pg-mermaid.mjs --host=${hostname} --port=${port} --username=${username} --dbname=${databaseName} --schema=${schema} --output-path=${outputPath}${
         selectedTables.length === tables.length
           ? ""
-          : `--exclude-tables=${tables
+          : ` --exclude-tables=${tables
               .filter((table) => !selectedTables.includes(table))
               .join(",")} `
-      }--output-path=${outputPath}`
+      }`
     );
     break;
 }
