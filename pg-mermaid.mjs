@@ -263,10 +263,36 @@ for (const foreignKey of foreignKeys) {
   );
 }
 
+// Indexes
+const tableIndexesInCsvFormat = await runSql(`
+  select
+    tablename, string_agg(indexname, ';')
+  from
+    pg_indexes
+  where
+    schemaname = '${schema}'
+    and tablename in (${selectedTables.map((table) => `'${table}'`).join(",")})
+  group by 
+    tablename;
+`);
+const tableIndexes = tableIndexesInCsvFormat.stdout
+  .split("\n")
+  .filter(Boolean)
+  .map((tableIndex) => tableIndex.split(","));
+
+const markdown = ["```mermaid", ...erDiagram, "```", "### Indexes"];
+for (const tableIndex of tableIndexes) {
+  const [table, indexes] = tableIndex;
+  markdown.push(`#### \`${table}\``);
+
+  for (const index of indexes.split(";")) {
+    markdown.push(`- \`${index}\``);
+  }
+}
+
 // Output
 if (!isInteractive) {
-  const markdown = "```mermaid\n" + erDiagram.join("\n") + "\n```";
-  await $`echo ${markdown} > ${outputPath}`;
+  await $`echo ${markdown.join("\n")} > ${outputPath}`;
   echo(`Entity relationship diagram generated at '${outputPath}'.`);
   process.exit();
 }
@@ -276,13 +302,13 @@ const { choice } = await prompt({
   name: "choice",
   message: " ",
   choices: [
-    "Preview diagram in Mermaid live editor",
-    "Generate diagram in markdown format",
+    "Generate diagram in markdown format (with indexes)",
+    "Preview diagram in Mermaid live editor (without indexes)",
   ],
 });
 
 switch (choice) {
-  case "Preview diagram in Mermaid live editor":
+  case "Preview diagram in Mermaid live editor (without indexes)":
     echo(
       `https://mermaid.live/edit#base64:${btoa(
         JSON.stringify({
@@ -292,15 +318,14 @@ switch (choice) {
       )}`
     );
     break;
-  case "Generate diagram in markdown format":
+  case "Generate diagram in markdown format (with indexes)":
     const { outputPath } = await prompt({
       type: "input",
       name: "outputPath",
       message: "Path?",
       initial: "./entity-relationship-diagram.md",
     });
-    const markdown = "```mermaid\n" + erDiagram.join("\n") + "\n```";
-    await $`echo ${markdown} > ${outputPath}`;
+    await $`echo ${markdown.join("\n")} > ${outputPath}`;
     echo("Tips! Next time, you can directly run:");
 
     const tablesInCsvFormat = await runSql(`
