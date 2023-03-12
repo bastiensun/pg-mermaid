@@ -175,6 +175,7 @@ for (const table of selectedTables) {
     select 
       columns.column_name,
       columns.udt_name,
+      -- string_agg(table_constraints.constraint_type, ';'), FIXME: GitHub Flavored Markdown does not support "PK,FK" syntax
       table_constraints.constraint_type,
       columns.is_nullable
     from 
@@ -190,6 +191,10 @@ for (const table of selectedTables) {
     where 
       columns.table_schema = '${schema}' 
       and columns.table_name = '${table}';
+    /* FIXME: GitHub Flavored Markdown does not support "PK,FK" syntax
+      group by
+        columns.column_name, columns.udt_name, columns.is_nullable;
+    */  
   `);
 
   const columns = columnsInCsvFormat.stdout
