@@ -225,46 +225,50 @@ for (const table of selectedTables) {
 const foreignKeysInCsvFormat = await runSql(`
   select 
     key_column_usage_1.table_name,
-    key_column_usage_1.column_name,
+    string_agg(distinct key_column_usage_1.column_name, ';'),
     key_column_usage_2.table_name,
-    key_column_usage_2.column_name
+    string_agg(distinct key_column_usage_2.column_name, ';')
   from 
     information_schema.referential_constraints
     join information_schema.key_column_usage as key_column_usage_1
       on key_column_usage_1.constraint_schema = referential_constraints.constraint_schema
       and key_column_usage_1.constraint_name = referential_constraints.constraint_name
-      and key_column_usage_1.table_name in (${selectedTables
-        .map((table) => `'${table}'`)
-        .join(", ")})
     join information_schema.key_column_usage as key_column_usage_2
       on key_column_usage_2.constraint_schema = referential_constraints.unique_constraint_schema
       and key_column_usage_2.constraint_name = referential_constraints.unique_constraint_name
-      and key_column_usage_2.table_name in (${selectedTables
-        .map((table) => `'${table}'`)
-        .join(", ")})
-  where 
-    referential_constraints.constraint_schema = '${schema}';
+  where
+    referential_constraints.constraint_schema = '${schema}'
+  group by
+    key_column_usage_1.constraint_name, key_column_usage_1.table_name, key_column_usage_2.table_name;
 `);
 
 const foreignKeys = foreignKeysInCsvFormat.stdout
   .split("\n")
   .filter(Boolean)
   .map((foreignKey) => {
-    const [childTableName, childColumnName, parentTableName, parentColumnName] =
-      foreignKey.split(",");
+    const [
+      childTableName,
+      childColumnNames,
+      parentTableName,
+      parentColumnNames,
+    ] = foreignKey.split(",");
     return {
       childTableName,
-      childColumnName,
+      childColumnNames: childColumnNames.replaceAll(";", ", "),
       parentTableName,
-      parentColumnName,
+      parentColumnNames: parentColumnNames.replaceAll(";", ", "),
     };
   });
 
 for (const foreignKey of foreignKeys) {
-  const { childTableName, childColumnName, parentTableName, parentColumnName } =
-    foreignKey;
+  const {
+    childTableName,
+    childColumnNames,
+    parentTableName,
+    parentColumnNames,
+  } = foreignKey;
   erDiagram.push(
-    `${parentTableName} ||--o{ ${childTableName}: "${childTableName}(${childColumnName}) -> ${parentTableName}(${parentColumnName})"`
+    `${parentTableName} ||--o{ ${childTableName}: "${childTableName}(${childColumnNames}) -> ${parentTableName}(${parentColumnNames})"`
   );
 }
 
