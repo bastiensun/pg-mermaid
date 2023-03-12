@@ -57,21 +57,25 @@ let password;
 let schema;
 let outputPath;
 let selectedTables;
-if (
-  (argv.username || argv.U) &&
-  (argv.dbname || argv.d) &&
-  argv.schema &&
-  process.env.PGPASSWORD
-) {
+if ((argv.username || argv.U) && (argv.dbname || argv.d) && argv.schema) {
   isInteractive = false;
 
   hostname = argv.host ?? argv.h ?? "localhost";
   port = argv.port ?? argv.p ?? 5432;
   username = argv.username ?? argv.U;
   databaseName = argv.dbname ?? argv.d;
-  password = process.env.PGPASSWORD;
   schema = argv.schema;
   outputPath = argv["output-path"] ?? "./entity-relationship-diagram.md";
+
+  if (process.env.PGPASSWORD) {
+    password = process.env.PGPASSWORD;
+  } else {
+    ({ password } = await prompt({
+      type: "password",
+      name: "password",
+      message: `Password? (you can use "PGPASSWORD" environment variable)`,
+    }));
+  }
 
   const excludeTables = argv["exclude-tables"]?.split(",") ?? [];
   const selectedTablesInCsvFormat = await runSql(`
