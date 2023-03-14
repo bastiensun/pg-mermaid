@@ -237,9 +237,15 @@ const foreignKeysInCsvFormat = await runSql(`
     join information_schema.key_column_usage as key_column_usage_1
       on key_column_usage_1.constraint_schema = referential_constraints.constraint_schema
       and key_column_usage_1.constraint_name = referential_constraints.constraint_name
+      and key_column_usage_1.table_name in (${selectedTables
+        .map((table) => `'${table}'`)
+        .join(", ")})
     join information_schema.key_column_usage as key_column_usage_2
       on key_column_usage_2.constraint_schema = referential_constraints.unique_constraint_schema
       and key_column_usage_2.constraint_name = referential_constraints.unique_constraint_name
+      and key_column_usage_2.table_name in (${selectedTables
+        .map((table) => `'${table}'`)
+        .join(", ")})
   where
     referential_constraints.constraint_schema = '${schema}'
   group by
