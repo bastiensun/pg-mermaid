@@ -7,7 +7,7 @@ $.verbose = false;
 const showHelp = () => {
   echo("Usage:");
   echo(
-    "  ./pg-mermaid.mjs [--username=USERNAME --dbname=DBNAME --schema=SCHEMA [OPTION]...]"
+    "  pg-mermaid [--username=USERNAME --dbname=DBNAME --schema=SCHEMA [OPTION]...]"
   );
   echo("");
   echo("Options:");
@@ -89,7 +89,9 @@ if ((argv.username || argv.U) && (argv.dbname || argv.d) && argv.schema) {
         excludeTables.length === 0
           ? "''"
           : excludeTables.map((table) => `'${table}'`).join(",")
-      });
+      })
+    order by 
+      table_name;
   `);
   selectedTables = selectedTablesInCsvFormat.stdout.split("\n").filter(Boolean);
 } else if (Object.keys(argv).length === 1 && argv._.length === 0) {
@@ -129,7 +131,9 @@ if ((argv.username || argv.U) && (argv.dbname || argv.d) && argv.schema) {
     select
       schema_name
     from
-      information_schema.schemata;
+      information_schema.schemata
+    order by 
+      schema_name;
   `);
   const schemas = schemasInCsvFormat.stdout.split("\n").filter(Boolean);
 
@@ -146,7 +150,9 @@ if ((argv.username || argv.U) && (argv.dbname || argv.d) && argv.schema) {
   from 
     information_schema.tables
   where 
-    table_schema = '${schema}';
+    table_schema = '${schema}'
+  order by
+    table_name;
 `);
   const tables = tablesInCsvFormat.stdout.split("\n").filter(Boolean);
 
@@ -167,21 +173,26 @@ if ((argv.username || argv.U) && (argv.dbname || argv.d) && argv.schema) {
 const erDiagram = ["erDiagram"];
 
 // Entity
-const formattedContraintType = new Map([
-  ["PRIMARY KEY", "PK"],
-  ["FOREIGN KEY", "FK"],
-]);
-
 for (const table of selectedTables) {
-  erDiagram.push(`${table} {`);
+  erDiagram.push(`    ${table} {`);
 
   const columnsInCsvFormat = await runSql(`
     select 
       columns.column_name,
-      columns.udt_name,
+      case 
+        when columns.data_type='ARRAY' then replace(columns.udt_name, '_', '') || '_array'
+        when columns.data_type='USER-DEFINED' then columns.udt_name
+        else replace(columns.data_type, ' ', '_') 
+      end as data_type,
       -- string_agg(table_constraints.constraint_type, ';'), FIXME: GitHub Flavored Markdown does not support "PK,FK" syntax
-      table_constraints.constraint_type,
-      columns.is_nullable
+      case
+        when table_constraints.constraint_type = 'PRIMARY KEY' then 'PK'
+        when table_constraints.constraint_type = 'FOREIGN KEY' then 'FK'
+      end as constraint_type,
+      case
+        when columns.is_nullable = 'YES' then 'null'
+        when columns.is_nullable = 'NO' then 'not null'
+      end as is_nullable
     from 
       information_schema.columns
       left join information_schema.key_column_usage 
@@ -194,11 +205,20 @@ for (const table of selectedTables) {
         and table_constraints.constraint_name = key_column_usage.constraint_name
     where 
       columns.table_schema = '${schema}' 
-      and columns.table_name = '${table}';
+      and columns.table_name = '${table}'
     /* FIXME: GitHub Flavored Markdown does not support "PK,FK" syntax
       group by
         columns.column_name, columns.udt_name, columns.is_nullable;
     */  
+    order by 
+      case
+        when table_constraints.constraint_type = 'PRIMARY KEY' then 1
+        when table_constraints.constraint_type = 'FOREIGN KEY' then 2
+        else 3
+      end,
+      columns.is_nullable, 
+      data_type, 
+      columns.column_name;
   `);
 
   const columns = columnsInCsvFormat.stdout
@@ -208,21 +228,21 @@ for (const table of selectedTables) {
       const [name, dataType, constraintType, isNullable] = column.split(",");
       return {
         name,
-        dataType: dataType.replaceAll("_", ""),
-        contraintType: formattedContraintType.get(constraintType),
-        isNullable: isNullable === "YES",
+        dataType,
+        constraintType,
+        isNullable,
       };
     });
 
   for (const column of columns) {
     erDiagram.push(
-      `  ${column.name} ${column.dataType} ${column.contraintType ?? ""} "${
-        column.isNullable ? "null" : "not null"
-      }"`
+      `        ${column.name} ${column.dataType}${
+        column.constraintType ? ` ${column.constraintType} ` : " "
+      }"${column.isNullable}"`
     );
   }
 
-  erDiagram.push("}");
+  erDiagram.push("    }", "");
 }
 
 // Relationship
@@ -249,7 +269,10 @@ const foreignKeysInCsvFormat = await runSql(`
   where
     referential_constraints.constraint_schema = '${schema}'
   group by
-    key_column_usage_1.constraint_name, key_column_usage_1.table_name, key_column_usage_2.table_name;
+    key_column_usage_1.constraint_name, key_column_usage_1.table_name, key_column_usage_2.table_name
+  order by
+    key_column_usage_1.table_name,
+    key_column_usage_2.table_name;
 `);
 
 const foreignKeys = foreignKeysInCsvFormat.stdout
@@ -278,7 +301,7 @@ for (const foreignKey of foreignKeys) {
     parentColumnNames,
   } = foreignKey;
   erDiagram.push(
-    `${parentTableName} ||--o{ ${childTableName}: "${childTableName}(${childColumnNames}) -> ${parentTableName}(${parentColumnNames})"`
+    `    ${parentTableName} ||--o{ ${childTableName} : "${childTableName}(${childColumnNames}) -> ${parentTableName}(${parentColumnNames})"`
   );
 }
 
@@ -292,6 +315,8 @@ const tableIndexesInCsvFormat = await runSql(`
     schemaname = '${schema}'
     and tablename in (${selectedTables.map((table) => `'${table}'`).join(",")})
   group by 
+    tablename
+  order by 
     tablename;
 `);
 const tableIndexes = tableIndexesInCsvFormat.stdout
@@ -299,14 +324,17 @@ const tableIndexes = tableIndexesInCsvFormat.stdout
   .filter(Boolean)
   .map((tableIndex) => tableIndex.split(","));
 
-const markdown = ["```mermaid", ...erDiagram, "```", "### Indexes"];
+const markdown = ["```mermaid", ...erDiagram, "```", "", "### Indexes", ""];
 for (const tableIndex of tableIndexes) {
   const [table, indexes] = tableIndex;
-  markdown.push(`#### \`${table}\``);
+  markdown.push(`#### \`${table}\``, "");
 
-  for (const index of indexes.split(";")) {
+  const sortedIndexes = indexes.split(";").sort()
+  for (const index of sortedIndexes) {
     markdown.push(`- \`${index}\``);
   }
+  
+  markdown.push("");
 }
 
 // Output
@@ -353,7 +381,9 @@ switch (choice) {
       from 
         information_schema.tables
       where 
-        table_schema = '${schema}';
+        table_schema = '${schema}'
+      order by 
+        table_name;
     `);
     const tables = tablesInCsvFormat.stdout.split("\n").filter(Boolean);
     echo(
