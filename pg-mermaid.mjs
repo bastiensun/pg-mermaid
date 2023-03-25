@@ -338,11 +338,11 @@ for (const tableIndex of tableIndexes) {
   const [table, indexes] = tableIndex;
   markdown.push(`### \`${table}\``, "");
 
-  const sortedIndexes = indexes.split(";").sort()
+  const sortedIndexes = indexes.split(";").sort();
   for (const index of sortedIndexes) {
     markdown.push(`- \`${index}\``);
   }
-  
+
   markdown.push("");
 }
 
