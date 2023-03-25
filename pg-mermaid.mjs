@@ -324,10 +324,19 @@ const tableIndexes = tableIndexesInCsvFormat.stdout
   .filter(Boolean)
   .map((tableIndex) => tableIndex.split(","));
 
-const markdown = ["```mermaid", ...erDiagram, "```", "", "### Indexes", ""];
+const markdown = [
+  "## Diagram",
+  "",
+  "```mermaid",
+  ...erDiagram,
+  "```",
+  "",
+  "## Indexes",
+  "",
+];
 for (const tableIndex of tableIndexes) {
   const [table, indexes] = tableIndex;
-  markdown.push(`#### \`${table}\``, "");
+  markdown.push(`### \`${table}\``, "");
 
   const sortedIndexes = indexes.split(";").sort()
   for (const index of sortedIndexes) {
