@@ -24,7 +24,7 @@ const showHelp = () => {
   echo("  --schema=SCHEMA");
   echo("  --exclude-tables=TABLE1,TABLE2");
   echo(
-    "  --output-path=OUTPUT_PATH       (default: ./entity-relationship-diagram.md)"
+    "  --output-path=OUTPUT_PATH       (default: ./database.md)"
   );
 };
 
@@ -65,7 +65,7 @@ if ((argv.username || argv.U) && (argv.dbname || argv.d) && argv.schema) {
   username = argv.username ?? argv.U;
   databaseName = argv.dbname ?? argv.d;
   schema = argv.schema;
-  outputPath = argv["output-path"] ?? "./entity-relationship-diagram.md";
+  outputPath = argv["output-path"] ?? "./database.md";
 
   if (process.env.PGPASSWORD) {
     password = process.env.PGPASSWORD;
@@ -370,7 +370,7 @@ switch (choice) {
       type: "input",
       name: "outputPath",
       message: "Path?",
-      initial: "./entity-relationship-diagram.md",
+      initial: "./database.md",
     });
     await $`echo ${markdown.join("\n")} > ${outputPath}`;
     echo("Tips! Next time, you can directly run:");
