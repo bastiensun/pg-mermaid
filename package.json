@@ -1,19 +1,14 @@
 {
   "name": "pg-mermaid",
-  "version": "0.1.5",
-  "description": "",
-  "bin": "pg-mermaid.mjs",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
+  "version": "0.0.0",
+  "private": true,
   "license": "AGPL-3.0-only",
-  "dependencies": {
-    "enquirer": "^2.3.6",
-    "zx": "^7.2.0"
-  },
+  "scripts": {},
+  "dependencies": {},
   "devDependencies": {
-    "prettier": "^2.8.4"
+    "@nrwl/js": "15.8.9",
+    "@nrwl/workspace": "15.8.9",
+    "nx": "15.8.9",
+    "prettier": "^2.6.2"
   }
 }
