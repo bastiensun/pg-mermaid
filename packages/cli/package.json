@@ -1,4 +1,25 @@
 {
   "name": "pg-mermaid",
-  "version": "0.1.5"
+  "version": "0.1.5",
+  "description": "Mermaid diagram generator for PostgreSQL database schema",
+  "keywords": [
+    "diagram",
+    "entity relationship diagram",
+    "er diagram",
+    "mermaid",
+    "postgres",
+    "postgresql"
+  ],
+  "bugs": "https://github.com/bastiensun/pg-mermaid/issues",
+  "repository": {
+    "url": "github:bastiensun/pg-mermaid",
+    "directory": "packages/cli"
+  },
+  "license": "AGPL-3.0-only",
+  "author": "Bastien Sun",
+  "bin": "./src/index.js",
+  "engines": {
+    "node": ">=14.15.0",
+    "pnpm": ">=6"
+  }
 }

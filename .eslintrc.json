@@ -2,6 +2,16 @@
   "root": true,
   "ignorePatterns": ["**/*"],
   "plugins": ["@nrwl/nx"],
+  "extends": ["canonical/auto"],
+  "rules": {
+    "import/no-extraneous-dependencies": "off",
+    "node/no-extraneous-import": "off",
+    "node/shebang": [
+      "error",
+      { "convertPath": { "src/index.ts": ["^src/index.ts$", "src/index.js"] } }
+    ],
+    "prettier/prettier": "off"
+  },
   "overrides": [
     {
       "files": ["*.ts", "*.tsx", "*.js", "*.jsx"],
