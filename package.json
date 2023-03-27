@@ -1,6 +1,6 @@
 {
   "name": "pg-mermaid",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "",
   "bin": "pg-mermaid.mjs",
   "scripts": {
