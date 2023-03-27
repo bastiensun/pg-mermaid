@@ -22,7 +22,7 @@ const showHelp = () => {
     "  -d, --dbname=DBNAME             postgres database name to connect to"
   );
   echo("  --schema=SCHEMA");
-  echo("  --exclude-tables=TABLE1,TABLE2");
+  echo("  --excluded-tables=TABLE1,TABLE2");
   echo(
     "  --output-path=OUTPUT_PATH       (default: ./database.md)"
   );
@@ -77,7 +77,7 @@ if ((argv.username || argv.U) && (argv.dbname || argv.d) && argv.schema) {
     }));
   }
 
-  const excludeTables = argv["exclude-tables"]?.split(",") ?? [];
+  const excludedTables = argv["excluded-tables"]?.split(",") ?? [];
   const selectedTablesInCsvFormat = await runSql(`
     select 
       table_name 
@@ -86,9 +86,9 @@ if ((argv.username || argv.U) && (argv.dbname || argv.d) && argv.schema) {
     where 
       table_schema = '${schema}'
       and table_name not in (${
-        excludeTables.length === 0
+        excludedTables.length === 0
           ? "''"
-          : excludeTables.map((table) => `'${table}'`).join(",")
+          : excludedTables.map((table) => `'${table}'`).join(",")
       })
     order by 
       table_name;
@@ -161,8 +161,8 @@ if ((argv.username || argv.U) && (argv.dbname || argv.d) && argv.schema) {
     name: "selectedTables",
     message: "Tables?",
     choices: [...tables].sort(),
-    initial: argv["exclude-tables"]
-      ? tables.filter((table) => !argv["exclude-tables"].includes(table))
+    initial: argv["excluded-tables"]
+      ? tables.filter((table) => !argv["excluded-tables"].includes(table))
       : tables,
   }));
 } else {
@@ -399,7 +399,7 @@ switch (choice) {
       `  ./pg-mermaid.mjs --host=${hostname} --port=${port} --username=${username} --dbname=${databaseName} --schema=${schema} --output-path=${outputPath}${
         selectedTables.length === tables.length
           ? ""
-          : ` --exclude-tables=${tables
+          : ` --excluded-tables=${tables
               .filter((table) => !selectedTables.includes(table))
               .join(",")} `
       }`
