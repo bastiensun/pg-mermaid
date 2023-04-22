@@ -1,6 +1,6 @@
 {
   "name": "pg-mermaid",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "Mermaid diagram generator for PostgreSQL database schema",
   "keywords": [
     "diagram",
