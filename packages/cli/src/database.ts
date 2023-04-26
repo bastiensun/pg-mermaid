@@ -10,7 +10,7 @@ type createConnectionParameters = {
 };
 export const createConnection = async ({
   dbname,
-  host = 'localhost',
+  host = '127.0.0.1',
   password,
   port = 5_432,
   username,

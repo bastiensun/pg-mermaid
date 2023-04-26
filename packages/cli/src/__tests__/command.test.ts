@@ -73,7 +73,7 @@ it('should return default options when optional options are not set', () => {
   });
 
   // Then
-  expect(host).toEqual('localhost');
+  expect(host).toEqual('127.0.0.1');
   expect(port).toEqual(5_432);
   expect(schema).toEqual('public');
   expect(outputPath).toEqual('./database.md');

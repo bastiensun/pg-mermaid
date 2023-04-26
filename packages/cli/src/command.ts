@@ -38,7 +38,7 @@ export const createProgram = (): Command => {
     .requiredOption(
       '-h, --host <hostname>',
       'host address of the database',
-      'localhost'
+      '127.0.0.1'
     )
     .requiredOption(
       '-p, --port <port>',

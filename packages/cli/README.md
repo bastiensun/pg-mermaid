@@ -23,7 +23,7 @@ Usage: pg-mermaid [options]
 Options:
   -d, --dbname <dbname>          database name to connect to
   -U, --username <username>      username to connect to the database
-  -h, --host <hostname>          host address of the database (default: "localhost")
+  -h, --host <hostname>          host address of the database (default: "127.0.0.1")
   -p, --port <port>              port number at which the instance is listening (default: "5432")
   --schema <schema>              schema name to generate to (default: "public")
   --output-path <outputPath>     output path to generate to (default: "./database.md")
