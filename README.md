@@ -54,3 +54,24 @@ cf. [examples/database.md](https://github.com/bastiensun/pg-mermaid/blob/main/ex
 ```shell
 pnpm install
 ```
+
+### Run `pg-mermaid` executable
+
+#### Build to convert TypeScript script in JavaScript then run script with `node`
+
+```shell
+pnpm build
+node dist/index.js
+```
+
+#### Or run TypeScript script directly with `tsx`
+
+```shell
+tsx src/index.ts
+```
+
+### Run tests
+
+```shell
+pnpm test
+```
